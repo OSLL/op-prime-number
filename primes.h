@@ -30,7 +30,7 @@ public:
     //
     static numeric_t mul(numeric_t a, numeric_t b, numeric_t m);
 
-    // Бвстрое возведение в степень по модулю
+    // Быстрое возведение в степень по модулю
     //
     static numeric_t pow(numeric_t a, numeric_t b, numeric_t m);
 
