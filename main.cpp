@@ -40,6 +40,9 @@ int main(int argc, char * argv[]) {
     // для параллельной обработки списков чисел.
     const auto [in_path, out_path, task, num_proc] = get_param(argc, argv);
 
+    // Чтобы не вылезало предупреждение
+    (num_proc == 0);
+
     if (!fs::exists(in_path)) {  // Если у нас имеется не валидный путь к файлу
         std::cerr << "Invalid path to input. Path does not exist." << std::endl;
         std::exit(EXIT_FAILURE); // Выходим с ошибкой
