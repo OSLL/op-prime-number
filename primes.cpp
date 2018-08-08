@@ -18,24 +18,19 @@ bool Primes::is_prime(numeric_t num) {
     return true;
 }
 
-// std::vector<std::pair<numeric_t , numeric_t>> Primes::factorization(numeric_t num) -
-// метод, возвращающий вектор пар разложения числа на простые множители.
-// Пара содержит простотое число в поле first и его степень в поле second.
-std::vector<std::pair<numeric_t , numeric_t>> Primes::factorization(numeric_t num) {
+// std::vector<numeric_t> Primes::factorization(numeric_t num) -
+// метод, возвращающий вектор простых делителей числа.
+std::vector<numeric_t> Primes::factorization(numeric_t num) {
 
     if (is_prime(num))
-        return std::vector<std::pair<numeric_t, numeric_t>>(1, {num, 1});
+        return {num};
 
-    std::vector<std::pair<numeric_t, numeric_t>> result;
-    std::vector<bool> primes((num / 2) + 1, true);
+    std::vector<numeric_t> result;
+    std::vector<bool> primes((num < 0 ? -num / 2 : num / 2) + 1, true); // чтобы не передать в конструктор отрицительное
     fill_sieve(primes);
     for (std::size_t i = 2; i < primes.size(); ++i)
-        if (primes[i] && !(num % i)) {
-            std::size_t degree_counter = 1;
-            for (std::size_t j = i; !(num % (j * i)); j *= i)
-                ++degree_counter;
-            result.emplace_back(i, degree_counter);
-        }
+        if (primes[i] && !(num % i))
+            result.push_back(static_cast<long long>(i));
     return result;
 }
 
