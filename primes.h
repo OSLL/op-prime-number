@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <ctime>
 
-using numeric_t = unsigned long long;
+using numeric_t = long long;
 
 class Primes {
 public:
@@ -17,10 +17,9 @@ public:
     //
     static bool is_prime(numeric_t num);
 
-    // Факторизация числа. Возвращает вектор пар разложений числа на простые множители.
-    // Пара содержит простотое число в поле first и его степень в поле second
+    // Факторизация числа. Возвращает вектор простых делителей числа.
     //
-    static std::vector<std::pair<numeric_t , numeric_t>> factorization(numeric_t num);
+    static std::vector<numeric_t> factorization(numeric_t num);
 
     // Наибольший общий делитель
     //
