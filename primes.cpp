@@ -31,6 +31,8 @@ std::vector<numeric_t> Primes::factorization(numeric_t num) {
     for (std::size_t i = 2; i < primes.size(); ++i)
         if (primes[i] && !(num % i))
             result.push_back(static_cast<long long>(i));
+    if (num < 0)
+        result[0] = -result[0];
     return result;
 }
 
