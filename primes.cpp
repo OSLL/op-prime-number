@@ -26,11 +26,12 @@ std::vector<numeric_t> Primes::factorization(numeric_t num) {
         return {num};
 
     std::vector<numeric_t> result;
-    std::vector<bool> primes((num < 0 ? -num / 2 : num / 2) + 1, true); // чтобы не передать в конструктор отрицительное
+    std::vector<bool> primes(std::abs(num) / 2 + 1, true); // чтобы не передать в конструктор отрицительное
     fill_sieve(primes);
-    for (std::size_t i = 2; i < primes.size(); ++i)
-        if (primes[i] && !(num % i))
-            result.push_back(static_cast<long long>(i));
+    for (std::size_t i = 2; i < primes.size(); ++i) {
+        if (primes[i] && !(num % static_cast<numeric_t>(i)))
+            result.push_back(static_cast<numeric_t>(i));
+    }
     if (num < 0)
         result[0] = -result[0];
     return result;
