@@ -71,7 +71,7 @@ int main(int argc, char * argv[]) {
                 if (line.find(':') != std::string::npos)         // <--- Если У нас встретился диапазон
                     process_range(line, out_file, what::check);  // <--- Обрабатываем диапазон
                 else
-                    if (Primes::is_prime(std::stoll(line)))
+                    if (Primes::is_prime(std::abs(std::stoll(line))))
                         out_file << line << std::endl;
             }
         }
@@ -86,6 +86,8 @@ int main(int argc, char * argv[]) {
                     out_file << std::endl;
                 }
             }
+        in_file.close();
+        out_file.close();
     }
     catch (std::ios_base::failure & e) {
         if (!in_file.eof()) {
@@ -169,7 +171,7 @@ void process_range(const std::string & range, std::ostream & out, const what & t
     out << left << ":" << right << " ---> [ ";
     if (task == what::check) {
         for (numeric_t num = left; num <= right; ++num) {
-            if (Primes::is_prime(num))
+            if (Primes::is_prime(std::abs(num)))
                 out << num << " ";
         }
     }
