@@ -2,6 +2,7 @@
 #include <fstream>                   // ifstream, ofstream
 #include <string>
 #include <tuple>
+#include <sstream>
 #include <algorithm>                // copy_if()
 #include <iterator>                 // istream_iterator<>, ostream_iterator<>
 #include <experimental/filesystem>  // canonnical(), path()
@@ -14,7 +15,7 @@
 
 namespace fs = std::experimental::filesystem;  // Для удобства объявим псевдоним fs для filesystem
 
-enum class what {check, factor, empty};        // check -- выполнить проверку на простоту, factor -- разлодить число на
+enum class what {check, factor, empty};        // check -- выполнить проверку на простоту, factor -- разложить число на
                                                // простые множители, empty -- отсутсвие параметра check либо factor
 
 void usage();                                  // <--- справка по использованию программы
@@ -31,6 +32,15 @@ void help();                                   // <--- информация по
 //                        what --- содержит одно из трех перечислений, указывающих режим
 //                                 исполнения программы. см. enum what {check, factor, empty}
 std::tuple<fs::path, fs::path, what, int> get_param(int argc, char * argv[]);
+
+// void process_range(const std::string & range, std::ostream & out, const what & task) - функция, которая обрабатывает
+// число заданное диапазоном в строковом параметре range, после чего обрабатывает этот диапазон и записывает
+// его в поток out, согласно режиму обработки task.
+// Принимаемые праметры: range - диапазон, представленный строкой в форме "left:right",
+//                               где left --- левая граница диапазона, right - правая граница диапазона включительно
+//                       out   - выходной поток для записи
+//                       task  - режим обработки диапазона
+void process_range(const std::string & range, std::ostream & out, const what & task);
 
 
 int main(int argc, char * argv[]) {
@@ -53,21 +63,31 @@ int main(int argc, char * argv[]) {
     std::ofstream out_file;                                                   // <--- файл для записи
     out_file.exceptions(std::ios_base::badbit | std::ios_base::failbit);      // <--- установим флаги исключений
     try {
+        std::string line;
         in_file.open(fs::canonical(in_path).string(), std::ios_base::in);
         out_file.open(out_path.string(), std::ios_base::out);
         if (task == what::check) {                               // <--- Если выбран режим проверки чисел на простоту
-            std::copy_if(std::istream_iterator<numeric_t>{in_file}, std::istream_iterator<numeric_t>{},
-                    std::ostream_iterator<numeric_t>{out_file, "\t"},
-                            [] (numeric_t num) { return Primes::is_prime(num); });
-        }
-        else {                                                   // <--- Иначе выбран режим факторизации
-            numeric_t num;
-            while (in_file >> num) {
-                for (const auto & pair: Primes::factorization(num))
-                    out_file <<"(" << pair.first << "^" << pair.second << ") * ";
-                out_file << "1" << std::endl;
+            while (in_file >> line) {
+                if (line.find(':') != std::string::npos)         // <--- Если У нас встретился диапазон
+                    process_range(line, out_file, what::check);  // <--- Обрабатываем диапазон
+                else
+                    if (Primes::is_prime(std::abs(std::stoll(line))))
+                        out_file << line << std::endl;
             }
         }
+        else                                                     // <--- Иначе выбран режим факторизации
+            while (in_file >> line) {
+                if (line.find(':') != std::string::npos)         // <--- Если У нас встретился диапазон
+                    process_range(line, out_file, what::factor); // <--- Обрабатываем диапазон
+                else {
+                    out_file << line << ": ";
+                    for (const auto &divider: Primes::factorization(std::stoll(line)))
+                        out_file << divider << " ";
+                    out_file << std::endl;
+                }
+            }
+        in_file.close();
+        out_file.close();
     }
     catch (std::ios_base::failure & e) {
         if (!in_file.eof()) {
@@ -141,4 +161,27 @@ std::tuple<fs::path, fs::path, what, int> get_param(int argc, char * argv[]) {
         std::exit(EXIT_FAILURE);
     }
     return {input, output, task, num_proc};
+}
+
+void process_range(const std::string & range, std::ostream & out, const what & task) {
+    std::stringstream ss{range};
+    numeric_t left, right;
+    char delim;
+    ss >> left >> delim >> right;
+    out << left << ":" << right << " ---> [ ";
+    if (task == what::check) {
+        for (numeric_t num = left; num <= right; ++num) {
+            if (Primes::is_prime(std::abs(num)))
+                out << num << " ";
+        }
+    }
+    else {
+        for (numeric_t num = left; num <= right; ++num) {
+            out << "{ " << num << ": ";
+            for (const auto & divider: Primes::factorization(num))
+                out << divider << " ";
+            out << "}";
+        }
+    }
+    out << "]" << std::endl;
 }
