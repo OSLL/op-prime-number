@@ -55,6 +55,7 @@ bool Prime::is_prime(numeric_t num) noexcept {
     return true;
 }
 
+
 static volatile sig_atomic_t prime;
 
 extern std::ofstream stat;
