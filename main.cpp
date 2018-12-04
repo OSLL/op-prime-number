@@ -12,6 +12,42 @@
 
 #include "primes.h"
 
+// Прогресс бар
+class ProgressBar
+{
+public:
+
+    ProgressBar() = default;
+
+    void init(unsigned long max, const std::string & message = "") {
+        max_ = max;
+        progress_val = 0;
+        percent_val = 0;
+        message_ = message;
+        bar_ = std::string(50, ' ');
+        bar_[0] = '|';
+    }
+
+    void operator () (unsigned long val) {
+        assert(max_ != 0 && max_ > 0);
+
+        if (progress_val < max_) {
+            progress_val += val;
+            percent_val = (progress_val * 100 / max_);
+            std::fill_n(bar_.begin(), percent_val / 2, '|');
+            std::cout << "\r" << message_ << " [" << "\033[1;33m\033[1m" << bar_ << "\033[0m] " << percent_val << "%";
+            std::cout.flush();
+        }
+    }
+private:
+    unsigned long          max_{};
+    unsigned long  progress_val{};
+    unsigned long   percent_val{};
+
+    std::string message_;
+    std::string     bar_;
+};
+
 
 namespace fs = std::experimental::filesystem;  // Для удобства объявим псевдоним fs для filesystem
 
@@ -33,14 +69,6 @@ void help();                                   // <--- информация по
 //                                 исполнения программы. см. enum what {check, factor, empty}
 std::tuple<fs::path, fs::path, what, long> get_param(int argc, char * argv[]);
 
-// void process_range(const std::string & range, std::ostream & out, const what & task) - процедура, которая обрабатывает
-// число заданное диапазоном в строковом параметре range, после чего обрабатывает этот диапазон и записывает
-// его в поток out, согласно режиму обработки task.
-// Принимаемые праметры: range - диапазон, представленный строкой в форме "left:right",
-//                               где left --- левая граница диапазона, right - правая граница диапазона включительно
-//                       out   - выходной поток для записи
-//                       task  - режим обработки диапазона
-void process_range(const std::string & range, std::ostream & out, const what & task);
 
 // void process_range(const std::string & range, std::ostream & out, const what & task, long nproc) - процедура,
 // которая обрабатывает число заданное диапазоном в строковом параметре range, после чего обрабатывает этот диапазон
@@ -50,13 +78,17 @@ void process_range(const std::string & range, std::ostream & out, const what & t
 //                       out   - выходной поток для записи
 //                       task  - режим обработки диапазона
 //                       nproc - колличество процессов
-void process_range(const std::string & range, std::ostream & out, const what & task, long nproc);
+void process_range(const std::string & range, std::ostream & out, const what & task, long nproc = 0);
 
-void check_for_primes(std::istream & in_file, std::ostream & out_file);
-void check_for_primes(std::istream & in_file, std::ostream & out_file, long nproc);
+void check_prime(std::istream & in, std::ostream & out, long nproc = 0);
 
-void perform_factorization(std::istream & in_file, std::ostream & out_file);
+void factorization(std::istream & in, std::ostream & out);
 
+std::streamoff stream_size(std::istream & f);
+
+
+std::ofstream stat;
+ProgressBar progress_bar;
 
 
 int main(int argc, char * argv[]) {
@@ -82,18 +114,20 @@ int main(int argc, char * argv[]) {
         in_file.open(fs::canonical(in_path).string(), std::ios_base::in);
         out_file.open(out_path.string(), std::ios_base::out);
 
+        stat.open("stat", std::ios_base::out);
+
         if (num_proc == -1) {
-            if (task == what::check)
-                check_for_primes(in_file, out_file);
-            else if (task == what::factor)
-                perform_factorization(in_file, out_file);
+
+            if (task == what::check) {
+                check_prime(in_file, out_file);
+            }
+            else {
+                factorization(in_file, out_file);
+            }
         }
         else if (num_proc >= 0) {
             auto nproc = (num_proc == 0 ? sysconf(_SC_NPROCESSORS_ONLN): num_proc);
-            if (task == what::check)
-                check_for_primes(in_file, out_file, nproc);
-            else if (task == what::factor)
-                perform_factorization(in_file, out_file);
+            check_prime(in_file, out_file, nproc);
         }
     }
     catch (std::ios_base::failure & e) {
@@ -107,6 +141,7 @@ int main(int argc, char * argv[]) {
         if (out_file.tellp() == 0)
             out_file << " ----------------- No records --------------------";
     }
+    stat.close();
     std::cout << std::endl;
     return 0;
 }
@@ -131,7 +166,8 @@ void help() {
               << "[-s | --scale]  - This option tells the program to make the list processing parallel to the number.\n"
                  "The value of the option indicates how many processes to split the processing of the list of numbers.\n"
                  "If the value is not specified, "
-                 "then the selection of the number of processes will occur automatically." << std::endl;
+                 "then the selection of the number of processes will occur automatically.\n"
+                 "Not supported in factorization mode" << std::endl;
 }
 
 std::tuple<fs::path, fs::path, what, long> get_param(int argc, char * argv[]) {
@@ -166,6 +202,11 @@ std::tuple<fs::path, fs::path, what, long> get_param(int argc, char * argv[]) {
         }
         option_index = -1;
     }
+    if (task == what::factor && num_proc != -1) {
+        std::cout << "factorization does not support parallel processing" << std::endl;
+        usage();
+        std::exit(EXIT_FAILURE);
+    }
     if (input.empty() || output.empty() || task == what::empty) {
         std::cout << "there are not enough options or options are incorrect" << std::endl;
         usage();
@@ -174,30 +215,7 @@ std::tuple<fs::path, fs::path, what, long> get_param(int argc, char * argv[]) {
     return {input, output, task, num_proc};
 }
 
-void process_range(const std::string & range, std::ostream & out, const what & task) {
-    std::stringstream ss{range};
-    numeric_t left, right;
-    char delim;
-    ss >> left >> delim >> right;
-    out << left << ":" << right << " ---> [ ";
-    if (task == what::check) {
-        for (numeric_t num = left; num <= right; ++num)
-                if (Prime::is_prime(num))
-                    out << num << " ";
-    }
-    else {
-        for (numeric_t num = left; num <= right; ++num) {
-            out << "{ " << num << ": ";
-            if (num != 0)
-                for (const auto & divider: Prime::factorization(num))
-                    out << divider << " ";
-            else
-                out << "any";
-            out << "}";
-        }
-    }
-    out << "]" << std::endl;
-}
+
 
 void process_range(const std::string & range, std::ostream & out, const what & task, long nproc){
     std::stringstream ss{range};
@@ -206,9 +224,16 @@ void process_range(const std::string & range, std::ostream & out, const what & t
     ss >> left >> delim >> right;
     out << left << ":" << right << " ---> [ ";
     if (task == what::check) {
-        for (numeric_t num = left; num <= right; ++num)
-            if (Prime::is_prime(num, nproc))
-                out << num << " ";
+        for (numeric_t num = left; num <= right; ++num) {
+            if (nproc) {
+                if (Prime::is_prime(num, nproc))
+                    out << num << " ";
+            }
+            else {
+                if (Prime::is_prime(num))
+                    out << num << " ";
+            }
+        }
     }
     else {
         for (numeric_t num = left; num <= right; ++num) {
@@ -224,65 +249,76 @@ void process_range(const std::string & range, std::ostream & out, const what & t
     out << "]" << std::endl;
 }
 
-void check_for_primes(std::istream & in_file, std::ostream & out_file) {
+
+void check_prime(std::istream & in, std::ostream & out, long nproc) {
+
+    progress_bar.init(static_cast<unsigned long>(stream_size(in)), "Progress");
+    std::size_t count_space = 0;
     std::string line;
-    while (in_file >> line) {
+    while (in >> line) {
         if (line.find(':') != std::string::npos) {
-            process_range(line, out_file, what::check);
+            if (nproc) {
+                process_range(line, out, what::check, nproc);
+            }
+            else
+                process_range(line, out, what::check);
         }
         else {
             try {
-                numeric_t num = std::stoll(line);
-                if (Prime::is_prime(num))
-                    out_file << line << std::endl;
+                if (nproc) {
+                    if (Prime::is_prime(std::stoll(line), nproc))
+                        out << line << std::endl;
+                }
+                else
+                    if (Prime::is_prime(std::stoll(line)))
+                        out << line << std::endl;
             }
             catch (std::logic_error & e) {
-                std::cerr << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
-                                       << "An integer value is required. Number skipped." << std::endl;
+                stat << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
+                     << "An integer value is required. Number skipped." << std::endl;
                 continue;
             }
         }
+        progress_bar(line.size() + count_space);
+        ++count_space;
     }
 }
 
-void check_for_primes(std::istream & in_file, std::ostream & out_file, long nproc) {
+
+void factorization(std::istream & in, std::ostream & out) {
+
+    progress_bar.init(static_cast<unsigned long>(stream_size(in)), "Progress");
+    std::size_t count_space = 0;
     std::string line;
-    while (in_file >> line) {
+
+    while (in >> line) {
         if (line.find(':') != std::string::npos)
-            process_range(line, out_file, what::check, nproc);
+            process_range(line, out, what::factor);
         else {
             try {
-                numeric_t num = std::stoll(line);
-                if (Prime::is_prime(num, nproc))
-                    out_file << line << std::endl;
+                numeric_t number = std::stoll(line);
+                out << line << ": ";
+                for (const auto &divider: Prime::factorization(number))
+                    out << divider << " ";
+                out << std::endl;
             }
             catch (std::logic_error & e) {
-                std::cerr << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
-                          << "An integer value is required. Number skipped." << std::endl;
+                stat << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
+                    << "An integer value is required. Number skipped." << std::endl;
                 continue;
             }
         }
+        progress_bar(line.size() + count_space);
+        ++count_space;
     }
 }
 
-void perform_factorization(std::istream & in_file, std::ostream & out_file) {
-    std::string line;
-    while (in_file >> line) {
-        if (line.find(':') != std::string::npos)
-            process_range(line, out_file, what::factor);
-        else {
-            try {
-                numeric_t num = std::stoll(line);
-                out_file << line << ": ";
-                for (const auto &divider: Prime::factorization(num))
-                    out_file << divider << " ";
-                out_file << std::endl;
-            }
-            catch (std::logic_error & e) {
-                std::cerr << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
-                          << "An integer value is required. Number skipped." << std::endl;
-                continue;
-            }
-        }
-    }
+std::streamoff stream_size(std::istream & f) {
+    std::istream::pos_type current_pos = f.tellg();
+    if (current_pos == -1)
+        return -1;
+    f.seekg(0, std::istream::end);
+    std::istream::pos_type end_pos = f.tellg();
+    f.seekg(current_pos);
+    return end_pos - current_pos;
 }
