@@ -57,13 +57,15 @@ bool Prime::is_prime(numeric_t num) noexcept {
 
 static volatile sig_atomic_t prime;
 
+extern std::ofstream stat;
+
 // bool Primes::is_prime(numeric_t num, long nproc) - метод реализует алгоритм
 // проверки числа на простоту.
 // Принимаемые параметры:  num   --- типа numeric_t(псевдоним числового типа).
 //                         nproc --- колличество процессов
 // Возвращаемые параметры: true, если num простое число, false - в противном случае
 bool Prime::is_prime(numeric_t num, long nproc) noexcept {
-    if (nproc <= 0 || nproc == 1 || std::abs(num) < 10000)
+    if (nproc <= 0 || nproc == 1 || std::abs(num) < 1000000)
         return Prime::is_prime(num);
 
     numeric_t mod = std::abs(num);
@@ -82,11 +84,12 @@ bool Prime::is_prime(numeric_t num, long nproc) noexcept {
     signal(SIGUSR1, handler);
     auto block_start = range.begin();
 
-    for (long i = 0; i < nproc - 1; ++i) {
-        if (!prime) {
-            term_all(childs);
-            return false;
-        }
+
+    stat << "-----------------------------------------------------------------------------------------------\n";
+    stat << "number is  " << num << std::endl;
+
+    for (long i = 0; i < nproc - 1 && prime; ++i) {
+
         auto block_end = block_start;
         std::advance(block_end, block_size);
 
@@ -100,11 +103,15 @@ bool Prime::is_prime(numeric_t num, long nproc) noexcept {
             continue;
         }
         else {
+            stat << "\tcreated process: " << getpid()
+            << " process interval: [" << *block_start << ":" << *block_end << "]";
             for (auto it = (*block_start % 2 == 0 ? ++block_start: block_start); it < block_end; it += 2)
                 if (mod % (*it) == 0) {
+                    stat << " <-- there is a divider!" << std::endl;
                     kill(getppid(), SIGUSR1);
                     std::exit(EXIT_SUCCESS);
                 }
+            stat << " <-- divider not found" << std::endl;
             std::exit(EXIT_SUCCESS);
         }
     }
@@ -113,10 +120,20 @@ bool Prime::is_prime(numeric_t num, long nproc) noexcept {
         return false;
     }
     wait_all(childs);
-    if (prime)
-        for (auto it = (*block_start % 2 == 0 ? ++block_start: block_start); it < range.end(); it += 2)
+    stat << "\tcreated process: " << getpid()
+              << " process interval: [" << *block_start << ":" << *range.end() << "]";
+    if (prime) {
+        for (auto it = (*block_start % 2 == 0 ? ++block_start : block_start); it < range.end(); it += 2)
             if (mod % (*it) == 0)
                 return false;
+        stat << " <-- divider not found" << std::endl;
+        stat << "\ntotal: " << childs.size() + 1 << std::endl;
+    }
+    else {
+        stat << " <-- not checked";
+        stat << "\ntotal: " << childs.size() << std::endl;
+    }
+    stat << "-----------------------------------------------------------------------------------------------\n";
     return prime != 0;
 }
 
@@ -215,8 +232,10 @@ static void wait_all(std::vector<pid_t> & childs) {
 }
 
 static void term_all(std::vector<pid_t> & childs) {
-    for (pid_t pid: childs)
-        kill(pid, SIGKILL);
+    for (pid_t pid: childs) {
+        stat << "kill pid: " << pid << std::endl;
+        kill(pid, SIGTERM);
+    }
 }
 
 
