@@ -8,7 +8,7 @@
 #include <cstdlib>                  // exit()
 #include <cstring>                  // atoi()
 #include <getopt.h>                 // getopt_long()
-#include <unistd.h>                 // _SC_NPROCESSORS_ONLN, for()
+#include <unistd.h>                 // _SC_NPROCESSORS_ONLN
 
 #include "primes.h"
 
@@ -87,7 +87,6 @@ void factorization(std::istream & in, std::ostream & out);
 std::streamoff stream_size(std::istream & f);
 
 
-std::ofstream stat;
 ProgressBar progress_bar;
 
 
@@ -114,8 +113,6 @@ int main(int argc, char * argv[]) {
         in_file.open(fs::canonical(in_path).string(), std::ios_base::in);
         out_file.open(out_path.string(), std::ios_base::out);
 
-        stat.open("stat", std::ios_base::out);
-
         if (num_proc == -1) {
 
             if (task == what::check) {
@@ -141,7 +138,6 @@ int main(int argc, char * argv[]) {
         if (out_file.tellp() == 0)
             out_file << " ----------------- No records --------------------";
     }
-    stat.close();
     std::cout << std::endl;
     return 0;
 }
@@ -274,8 +270,8 @@ void check_prime(std::istream & in, std::ostream & out, long nproc) {
                         out << line << std::endl;
             }
             catch (std::logic_error & e) {
-                stat << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
-                     << "An integer value is required. Number skipped." << std::endl;
+                std::cout << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
+                          << "An integer value is required. Number skipped." << std::endl;
                 continue;
             }
         }
@@ -303,8 +299,8 @@ void factorization(std::istream & in, std::ostream & out) {
                 out << std::endl;
             }
             catch (std::logic_error & e) {
-                stat << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
-                    << "An integer value is required. Number skipped." << std::endl;
+                std::cout << std::endl << "Number: " << '\'' << line << "' Wrong format or type overflow. "
+                          << "An integer value is required. Number skipped." << std::endl;
                 continue;
             }
         }
